@@ -18,6 +18,8 @@ import java.util.*;
  * Created by Administrator on 2016/10/2.
  */
 public class ReadExcel {
+    public static int count = 0;
+
     /**
      * read the Excel file
      *
@@ -25,7 +27,7 @@ public class ReadExcel {
      * @return
      * @throws IOException
      */
-    public List<Student> readExcel(String path) throws IOException {
+    public List<bean> readExcel(String path) throws IOException {
         if (path == null || Common.EMPTY.equals(path)) {
             return null;
         } else {
@@ -50,12 +52,12 @@ public class ReadExcel {
      * @return
      * @throws IOException
      */
-    public List<Student> readXlsx(String path) throws IOException {
+    public List<bean> readXlsx(String path) throws IOException {
         System.out.println(Common.PROCESSING + path);
         InputStream is = new FileInputStream(path);
         XSSFWorkbook xssfWorkbook = new XSSFWorkbook(is);
-        Student student = null;
-        List<Student> list = new ArrayList<Student>();
+        bean student = null;
+        List<bean> list = new ArrayList<bean>();
         // Read the Sheet
         for (int numSheet = 0; numSheet < xssfWorkbook.getNumberOfSheets(); numSheet++) {
             XSSFSheet xssfSheet = xssfWorkbook.getSheetAt(numSheet);
@@ -66,16 +68,17 @@ public class ReadExcel {
             for (int rowNum = 1; rowNum <= xssfSheet.getLastRowNum(); rowNum++) {
                 XSSFRow xssfRow = xssfSheet.getRow(rowNum);
                 if (xssfRow != null) {
-                    student = new Student();
-                    XSSFCell no = xssfRow.getCell(0);
-                    XSSFCell name = xssfRow.getCell(1);
-                    XSSFCell age = xssfRow.getCell(2);
-                    XSSFCell score = xssfRow.getCell(3);
-                    student.setSchool(getValue(no));
-                    student.setClassName(getValue(name));
-                    student.setNum(Integer.parseInt(getValue(age)));
-                    student.setYuwen(Float.valueOf(getValue(score)));
-                    list.add(student);
+                    if (xssfRow == null) {
+                        System.out.println("共" + count + "条数据");
+                        return list;
+                    }
+                    if (getValue(xssfRow.getCell(0)) == null || getValue(xssfRow.getCell(0)).length() == 0) {
+                        System.out.println("共" + count + "条数据");
+                        return list;
+                    }
+                    list.add(new bean(getValue(xssfRow.getCell(0)), getValue(xssfRow.getCell(1)), getValue(xssfRow.getCell(2)),
+                            getValue(xssfRow.getCell(3)), getValue(xssfRow.getCell(4)), getValue(xssfRow.getCell(5))));
+                    count++;
                 }
             }
         }
@@ -89,16 +92,11 @@ public class ReadExcel {
      * @return
      * @throws IOException
      */
-    public List<Student> readXls(String path) throws IOException {
-        /////////////////////////
-        HashMap<String, Map<String, ChengjiBean>> schoolMap = new HashMap<>();//学校map
-        Map<String, ChengjiBean> StuInfo = new HashMap<>();
-        //////////////////////////
+    public List<bean> readXls(String path) throws IOException {
         System.out.println(Common.PROCESSING + path);
         InputStream is = new FileInputStream(path);
         HSSFWorkbook hssfWorkbook = new HSSFWorkbook(is);
-        Student student = null;
-        List<Student> list = new ArrayList<Student>();
+        List<bean> list = new ArrayList<bean>();
         // Read the Sheet
         for (int numSheet = 0; numSheet < hssfWorkbook.getNumberOfSheets(); numSheet++) {
             HSSFSheet hssfSheet = hssfWorkbook.getSheetAt(numSheet);
@@ -109,31 +107,21 @@ public class ReadExcel {
             for (int rowNum = 1; rowNum <= hssfSheet.getLastRowNum(); rowNum++) {
                 HSSFRow hssfRow = hssfSheet.getRow(rowNum);
                 if (hssfRow != null) {
-                    student = new Student();
-                    HSSFCell sch = hssfRow.getCell(0);
-                    HSSFCell name = hssfRow.getCell(1);
-                    HSSFCell age = hssfRow.getCell(2);
-                    HSSFCell score = hssfRow.getCell(3);
-                    String school = getValue(sch);
-                    String className = getValue(name);
-                    if (school == null || school.length() == 0) break;
-                    if (!schoolMap.containsKey(school)) {
-                        Map<String, ChengjiBean> bean = new HashMap<>();
-                        schoolMap.put(school, bean);
+
+                    if (hssfRow == null) {
+                        System.out.println("共" + count + "条数据");
+                        return list;
                     }
-                    Map<String, ChengjiBean> chengjiBeanMap = schoolMap.get(school);//获取某个学校对应的班级map
-                    if (!chengjiBeanMap.containsKey(className)) {
-                        ChengjiBean temp = new ChengjiBean();
-                        chengjiBeanMap.put(className, temp);
+                    if (getValue(hssfRow.getCell(0)) == null || getValue(hssfRow.getCell(0)).length() == 0) {
+                        System.out.println("共" + count + "条数据");
+                        return list;
                     }
-//                    ChengjiBean student = chengjiBeanMap.get(className);
-//                    student.setSchool(school);
-//                    student.setClassName(getValue(name));
-//                    student.setNum(Float.parseFloat(getValue(age)));
-//                    student.setYuwen(Float.valueOf(getValue(score)));
-//                    list.add(student);
+                    list.add(new bean(getValue(hssfRow.getCell(0)), getValue(hssfRow.getCell(1)), getValue(hssfRow.getCell(2)),
+                            getValue(hssfRow.getCell(3)), getValue(hssfRow.getCell(4)), getValue(hssfRow.getCell(5))));
+                    count++;
                 }
             }
+            System.out.println("共" + count + "条数据");
         }
         return list;
     }
