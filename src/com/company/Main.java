@@ -16,12 +16,30 @@ public class Main {
     private static Map<String, ArrayList<String>> map = new HashMap<String, ArrayList<String>>();
     private static int count = 0;
 
-    private static List<bean> selectedList = new ArrayList<>();
+    private static List<bean> allDataList = new ArrayList<>();
     private static StringBuilder sb;
+    private static List<Double> yuwenList = new ArrayList<>();
+    private static List<Double> mathList = new ArrayList<>();
+    private static List<Double> engList = new ArrayList<>();
+    private static double yunwen_last;
+    private static double math_last;
+    private static double eng_last;
+    private static double yunwen_first;
+    private static double math_first;
+    private static double eng_first;
 
     public static void main(String[] args) {
 //        insert(loadData(excel2003_2007));                 //从excel读取数据并将读取的数据插入数据库
         getAll();
+        int len_first = (int) (count * 0.2);
+        int len_last = (int) (count * 0.8);
+        yunwen_last = yuwenList.get(len_first);
+        math_last = mathList.get(len_first);
+        eng_last = engList.get(len_first);
+        yunwen_first = yuwenList.get(len_last);
+        math_first = mathList.get(len_last);
+        eng_first = engList.get(len_last);
+//        System.out.println(yunwen_last);
 //        getBy("回民小学", "3.2");
         showMap();
     }
@@ -30,9 +48,14 @@ public class Main {
         Set<String> keySet = map.keySet();
         for (String key : keySet) {
             ArrayList<String> list = map.get(key);
+            double yuwen_fir = 0;
+            double math_fir = 0;
+            double eng_fir = 0;
+            double yuwen_las = 0;
+            double math_las = 0;
+            double eng_las = 0;
             for (String name : list) {          //依次列出每个学校的每个班级
                 System.out.println(key + " " + name);
-                selectedList.clear();
                 String res = getBy(key, name);
                 String[] split = res.split("#");
                 double yuwen = Double.parseDouble(split[0]);
@@ -42,8 +65,34 @@ public class Main {
                 double math_num = Double.parseDouble(split[4]);
                 double eng_num = Double.parseDouble(split[5]);
                 double total_num = Double.parseDouble(split[6]);
+
+                for (int i = 0; i < allDataList.size(); i++) {
+                    if (allDataList.get(i).getSchool().equals(key) && allDataList.get(i).getClassName().equals(name)) {
+                        if (allDataList.get(i).getYuwen() >= yunwen_first) {
+                            yuwen_fir++;
+                        }
+                        if (allDataList.get(i).getMath() >= math_first) {
+                            math_fir++;
+                        }
+                        if (allDataList.get(i).getEng() >= eng_first) {
+                            eng_fir++;
+                        }
+                        if (allDataList.get(i).getYuwen() <= yunwen_last) {
+                            yuwen_las++;
+                        }
+                        if (allDataList.get(i).getMath() <= math_last) {
+                            math_las++;
+                        }
+                        if (allDataList.get(i).getEng() <= eng_last) {
+                            eng_las++;
+                        }
+                    }
+                }
                 resBean temp = new resBean(key, name, yuwen, math, eng,
-                        yuwen_num / total_num, math_num / total_num, eng_num / total_num, 0);
+                        yuwen_num / total_num, math_num / total_num, eng_num / total_num,
+                        yuwen_fir / total_num, math_fir / total_num, eng_fir / total_num,
+                        yuwen_las / total_num, math_las / total_num, eng_las / total_num
+                        , 0);
                 System.out.println(res);
                 insertResult(temp);
             }
@@ -103,6 +152,43 @@ public class Main {
         } catch (Exception e) {
             e.printStackTrace();
         }
+        sql = "select count(*) from score";
+        try {
+            pstmt = (PreparedStatement) conn.prepareStatement(sql);
+            ResultSet rs = pstmt.executeQuery();
+            while (rs.next()) {
+                count = rs.getInt(1);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        sql = "select * from score";
+        try {
+            pstmt = (PreparedStatement) conn.prepareStatement(sql);
+            ResultSet rs = pstmt.executeQuery();
+            while (rs.next()) {
+                bean bean = new bean(rs.getString(2), rs.getString(3), rs.getString(4)
+                        , rs.getString(5), rs.getString(6), rs.getString(6));
+                allDataList.add(bean);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        sql = "select yuwen,math,eng from score";
+        try {
+            pstmt = (PreparedStatement) conn.prepareStatement(sql);
+            ResultSet rs = pstmt.executeQuery();
+            while (rs.next()) {
+                yuwenList.add(Double.valueOf(rs.getString(1)));
+                mathList.add(Double.valueOf(rs.getString(2)));
+                engList.add(Double.valueOf(rs.getString(3)));
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        Collections.sort(yuwenList);
+        Collections.sort(mathList);
+        Collections.sort(engList);
         return null;
     }
 
@@ -164,8 +250,10 @@ public class Main {
         }
         int i = 0;
         try {
-            String sql = "insert into result (school,classname,yuwen_average,math_average,eng_average" +
-                    ",yuwen_ratio,math_ratio,eng_ratio) values(?,?,?,?,?,?,?,?)";
+            String sql = "insert into result (school,classname,yuwen_average,math_average,eng_average," +
+                    "yuwen_ratio,math_ratio,eng_ratio," +
+                    "yuwen_first,math_first,eng_first," +
+                    "yuwen_last,math_last,eng_last) values(?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
             pstmt = (PreparedStatement) conn.prepareStatement(sql);
 //                temp.getSchool()
             pstmt.setString(1, bean.getSchool());
@@ -176,6 +264,12 @@ public class Main {
             pstmt.setString(6, bean.getYuwen_ratio() + "");
             pstmt.setString(7, bean.getMath_ratio() + "");
             pstmt.setString(8, bean.getEng_ratio() + "");
+            pstmt.setString(9, bean.getYuwen_first() + "");
+            pstmt.setString(10, bean.getMath_first() + "");
+            pstmt.setString(11, bean.getEng_first() + "");
+            pstmt.setString(12, bean.getYuwen_last() + "");
+            pstmt.setString(13, bean.getMath_last() + "");
+            pstmt.setString(14, bean.getEng_last() + "");
             i = pstmt.executeUpdate();
         } catch (Exception e) {
             e.printStackTrace();
