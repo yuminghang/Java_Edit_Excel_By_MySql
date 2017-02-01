@@ -23,10 +23,33 @@ public class bean {
     public bean(String school, String className, String num, String yuwen, String math, String eng) {
         this.school = school;
         this.className = className;
-        this.yuwen = Double.parseDouble(yuwen);
-        this.math = Double.parseDouble(math);
-        this.eng = Double.parseDouble(eng);
-        this.num = Double.parseDouble(num);
+//        this.yuwen = Double.parseDouble(yuwen);
+//        this.math = Double.parseDouble(math);
+        try {
+            if (yuwen == null || yuwen.length() == 0) {
+                this.yuwen = 0;
+            } else {
+                this.yuwen = Double.parseDouble(yuwen);
+            }
+            if (math == null || math.length() == 0) {
+                this.math = 0;
+            } else {
+                this.math = Double.parseDouble(math);
+            }
+            if (eng == null || eng.length() == 0) {
+                this.eng = 0;
+            } else {
+                this.eng = Double.parseDouble(eng);
+            }
+            if (num == null || num.length() == 0) {
+                this.num = 0;
+            } else {
+                this.num = Double.parseDouble(num);
+            }
+        }catch (Exception e){
+
+        }
+//        this.num = Double.parseDouble(num);
     }
 
     public String getSchool() {

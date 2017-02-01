@@ -2,16 +2,20 @@ package com.company;
 
 import com.mysql.jdbc.Connection;
 import com.mysql.jdbc.PreparedStatement;
+import com.mysql.jdbc.Statement;
+import org.apache.poi.hssf.usermodel.HSSFSheet;
+import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 
 import java.sql.DriverManager;
 import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.*;
 
 public class Main {
 
     private static Connection conn;
     private static PreparedStatement pstmt;
-    private static String excel2003_2007 = "C:\\Users\\Administrator\\Desktop\\项目\\test1.xls";
+    private static String excel2003_2007 = GUI.filePath;
     String excel2010 = Common.STUDENT_INFO_XLSX_PATH;
     private static Map<String, ArrayList<String>> map = new HashMap<String, ArrayList<String>>();
     private static int count = 0;
@@ -27,10 +31,19 @@ public class Main {
     private static double yunwen_first;
     private static double math_first;
     private static double eng_first;
+    private static List<resBean> finalDataList = new ArrayList<>();
 
-    public static void main(String[] args) {
-//        insert(loadData(excel2003_2007));                 //从excel读取数据并将读取的数据插入数据库
-        getAll();
+    public Main() {
+        createTable();                 //创建数据表
+        insert(loadData(excel2003_2007));                 //从excel读取数据并将读取的数据插入数据库
+        getAll();      //初始化各种数据集
+        initData();    //生成各种分数线
+        showMap();     //根据分数线计算各种数据
+        ToExcel(GUI.exportFilePath);    //导出到excel
+        clearData();                //清空数据表中的数据
+    }
+
+    public static void initData() {
         int len_first = (int) (count * 0.2);
         int len_last = (int) (count * 0.8);
         yunwen_last = yuwenList.get(len_first);
@@ -39,21 +52,97 @@ public class Main {
         yunwen_first = yuwenList.get(len_last);
         math_first = mathList.get(len_last);
         eng_first = engList.get(len_last);
-//        System.out.println(yunwen_last);
-//        getBy("回民小学", "3.2");
-        showMap();
+        System.err.println(yunwen_first);
+        System.err.println(math_first);
+        System.err.println(eng_first);
+        System.err.println(yunwen_last);
+        System.err.println(math_last);
+        System.err.println(eng_last);
+    }
+
+    public static void createTable() {
+        if (conn == null) {
+            initMySql();
+        }
+        Statement stmt = null;
+        try {
+            stmt = (Statement) conn.createStatement();
+            String sql = "CREATE TABLE  IF NOT EXISTS score ( "
+                    + " id  int(11) PRIMARY KEY  NOT NULL AUTO_INCREMENT, "
+                    + " school  VARCHAR(255), "
+                    + " classname  VARCHAR(255), "
+                    + " num  VARCHAR(255), "
+                    + " yuwen  VARCHAR(255), "
+                    + " math  VARCHAR(255), "
+                    + " eng  VARCHAR(255)"
+                    + ");";
+            stmt.execute(sql);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+    }
+
+    private static void clearData() {
+        if (conn == null) {
+            initMySql();
+        }
+
+        String sql = "TRUNCATE TABLE score";
+        PreparedStatement pstmt;
+        try {
+            pstmt = (PreparedStatement) conn.prepareStatement(sql);
+            ResultSet rs = pstmt.executeQuery();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+
+    public static void ToExcel(String path) {
+
+        HSSFWorkbook wb = new HSSFWorkbook();
+        HSSFSheet sheet = wb.createSheet("Sheet1");
+
+        String[] cols = {"学校", "班级"
+                ,"语文平均分", "语文及格率", "语文前20%", "语文后20%"
+                ,"数学平均分", "数学及格率", "数学前20%", "数学后20%"
+                ,"英语平均分", "英语及格率", "英语前20%", "英语后20%"
+        };
+        Object[][] value = new Object[finalDataList.size() + 1][cols.length];
+        for (int m = 0; m < cols.length; m++) {
+            value[0][m] = cols[m];
+        }
+        for (int i = 0; i < finalDataList.size(); i++) {
+            resBean users = (resBean) finalDataList.get(i);
+
+            value[i + 1][0] = users.getSchool();
+            value[i + 1][1] = users.getClassName();
+            value[i + 1][2] = users.getYuwen_average();
+            value[i + 1][3] = users.getYuwen_ratio();
+            value[i + 1][4] = users.getYuwen_first();
+            value[i + 1][5] = users.getYuwen_last();
+            value[i + 1][6] = users.getMath_average();
+            value[i + 1][7] = users.getMath_ratio();
+            value[i + 1][8] = users.getMath_first();
+            value[i + 1][9] = users.getMath_last();
+            value[i + 1][10] = users.getEng_average();
+            value[i + 1][11] = users.getEng_ratio();
+            value[i + 1][12] = users.getEng_first();
+            value[i + 1][13] = users.getEng_last();
+
+        }
+        ExcelUtil.writeArrayToExcel(wb, sheet, finalDataList.size() + 1, cols.length, value);
+
+        ExcelUtil.writeWorkbook(wb, path);
+
     }
 
     public static void showMap() {
         Set<String> keySet = map.keySet();
         for (String key : keySet) {
             ArrayList<String> list = map.get(key);
-            double yuwen_fir = 0;
-            double math_fir = 0;
-            double eng_fir = 0;
-            double yuwen_las = 0;
-            double math_las = 0;
-            double eng_las = 0;
+
             for (String name : list) {          //依次列出每个学校的每个班级
                 System.out.println(key + " " + name);
                 String res = getBy(key, name);
@@ -65,36 +154,42 @@ public class Main {
                 double math_num = Double.parseDouble(split[4]);
                 double eng_num = Double.parseDouble(split[5]);
                 double total_num = Double.parseDouble(split[6]);
-
+                double yuwen_fir = 0;
+                double math_fir = 0;
+                double eng_fir = 0;
+                double yuwen_las = 0;
+                double math_las = 0;
+                double eng_las = 0;
                 for (int i = 0; i < allDataList.size(); i++) {
                     if (allDataList.get(i).getSchool().equals(key) && allDataList.get(i).getClassName().equals(name)) {
                         if (allDataList.get(i).getYuwen() >= yunwen_first) {
                             yuwen_fir++;
+                        } else if (allDataList.get(i).getYuwen() <= yunwen_last) {
+                            yuwen_las++;
                         }
                         if (allDataList.get(i).getMath() >= math_first) {
                             math_fir++;
+                        } else if (allDataList.get(i).getMath() <= math_last) {
+                            math_las++;
                         }
                         if (allDataList.get(i).getEng() >= eng_first) {
                             eng_fir++;
-                        }
-                        if (allDataList.get(i).getYuwen() <= yunwen_last) {
-                            yuwen_las++;
-                        }
-                        if (allDataList.get(i).getMath() <= math_last) {
-                            math_las++;
-                        }
-                        if (allDataList.get(i).getEng() <= eng_last) {
+                        } else if (allDataList.get(i).getEng() <= eng_last) {
                             eng_las++;
                         }
                     }
+                }
+                if (yuwen_fir > total_num || math_fir > total_num || eng_fir > total_num) {
+                    System.out.println();
                 }
                 resBean temp = new resBean(key, name, yuwen, math, eng,
                         yuwen_num / total_num, math_num / total_num, eng_num / total_num,
                         yuwen_fir / total_num, math_fir / total_num, eng_fir / total_num,
                         yuwen_las / total_num, math_las / total_num, eng_las / total_num
                         , 0);
+                finalDataList.add(temp);
                 System.out.println(res);
-                insertResult(temp);
+//                insertResult(temp);
             }
         }
         System.out.println(count);
@@ -111,6 +206,8 @@ public class Main {
         }
         for (bean bean : list) {
             System.out.println(bean.toString());
+//            GUI.ta.setText(GUI.ta.getText().toString() + "\n" + bean.toString());
+//            GUI.ta.setCaretPosition(GUI.ta.getText().length());
         }
         System.out.println("======================================");
         return list;
@@ -230,8 +327,12 @@ public class Main {
             while (rs.next()) {
                 for (int i = 1; i <= col; i++) {
                     System.out.print(rs.getString(i) + "\t");
+//                    GUI.ta.setText(GUI.ta.getText().toString() + rs.getString(i) + "\t");
+//                    GUI.ta.setCaretPosition(GUI.ta.getText().length());
                     if ((i == 2) && (rs.getString(i).length() < 8)) {
                         System.out.print("\t");
+//                        GUI.ta.setText(GUI.ta.getText().toString() + "\n" + "\t");
+//                        GUI.ta.setCaretPosition(GUI.ta.getText().length());
                     }
                     sb.append(rs.getString(i) + "#");
                 }
@@ -306,13 +407,13 @@ public class Main {
                 System.err.println("error!!!");
             }
         }
-        try {
-            pstmt.close();
-            conn.close();
-        } catch (Exception e) {
-            e.printStackTrace();
-            System.err.println("error!!!");
-        }
+//        try {
+//            pstmt.close();
+//            conn.close();
+//        } catch (Exception e) {
+//            e.printStackTrace();
+//            System.err.println("error!!!");
+//        }
     }
 
     public static void initMySql() {
@@ -320,8 +421,10 @@ public class Main {
             //定义一个MYSQL链接对象
             conn = null;
             Class.forName("com.mysql.jdbc.Driver").newInstance(); //MYSQL驱动
-            conn = (Connection) DriverManager.getConnection("jdbc:mysql://127.0.0.1:3306/ymh?useUnicode=true&characterEncoding=UTF-8", "root", "158249"); //链接本地MYSQL
+            conn = (Connection) DriverManager.getConnection("jdbc:mysql://127.0.0.1:3306/work?useUnicode=true&characterEncoding=UTF-8", "root", "158249"); //链接本地MYSQL
             System.out.print("正在插入...");
+            GUI.ta.setText(GUI.ta.getText().toString() + "\n" + "正在插入...");
+            GUI.ta.setCaretPosition(GUI.ta.getText().length());
         } catch (Exception e) {
             System.out.print("MYSQL ERROR:" + e.getMessage());
         }
