@@ -31,14 +31,24 @@ public class Main {
     private static double yunwen_first;
     private static double math_first;
     private static double eng_first;
-    private static List<resBean> finalDataList = new ArrayList<>();
+    private static List<resBean> finalWriteList = new ArrayList<>();//最终将写入excel的数据集
+    private static List<Integer> gradeList = new ArrayList<>(); //存储年级
 
     public Main() {
         createTable();                 //创建数据表
-        insert(loadData(excel2003_2007));                 //从excel读取数据并将读取的数据插入数据库
-        getAll();      //初始化各种数据集
-        initData();    //生成各种分数线
-        showMap();     //根据分数线计算各种数据
+        List<bean> list = loadData(excel2003_2007);
+        for (bean temp : list) {
+            if (!gradeList.contains(Integer.parseInt(temp.getClassName().trim().charAt(0) + ""))) {
+                gradeList.add(Integer.parseInt(temp.getClassName().trim().charAt(0) + ""));
+            }
+        }
+        Collections.sort(gradeList);
+        insert(list);                 //从excel读取数据并将读取的数据插入数据库，新增年级字段
+        for (int i = 0; i < gradeList.size(); i++) {
+            getAll(gradeList.get(i));      //初始化各种数据集
+            initData();    //生成各种分数线
+            showMap();     //根据分数线计算各种数据
+        }
         ToExcel(GUI.exportFilePath);    //导出到excel
         clearData();                //清空数据表中的数据
     }
@@ -67,14 +77,15 @@ public class Main {
         Statement stmt = null;
         try {
             stmt = (Statement) conn.createStatement();
-            String sql = "CREATE TABLE  IF NOT EXISTS score ( "
+            String sql = "CREATE TABLE  IF NOT EXISTS scores ( "
                     + " id  int(11) PRIMARY KEY  NOT NULL AUTO_INCREMENT, "
                     + " school  VARCHAR(255), "
                     + " classname  VARCHAR(255), "
                     + " num  VARCHAR(255), "
                     + " yuwen  VARCHAR(255), "
                     + " math  VARCHAR(255), "
-                    + " eng  VARCHAR(255)"
+                    + " eng  VARCHAR(255),"
+                    + " grade  VARCHAR(255)"
                     + ");";
             stmt.execute(sql);
         } catch (Exception e) {
@@ -88,7 +99,7 @@ public class Main {
             initMySql();
         }
 
-        String sql = "TRUNCATE TABLE score";
+        String sql = "TRUNCATE TABLE scores";
         PreparedStatement pstmt;
         try {
             pstmt = (PreparedStatement) conn.prepareStatement(sql);
@@ -105,16 +116,16 @@ public class Main {
         HSSFSheet sheet = wb.createSheet("Sheet1");
 
         String[] cols = {"学校", "班级"
-                ,"语文平均分", "语文及格率", "语文前20%", "语文后20%"
-                ,"数学平均分", "数学及格率", "数学前20%", "数学后20%"
-                ,"英语平均分", "英语及格率", "英语前20%", "英语后20%"
+                , "语文平均分", "语文及格率", "语文前20%", "语文后20%"
+                , "数学平均分", "数学及格率", "数学前20%", "数学后20%"
+                , "英语平均分", "英语及格率", "英语前20%", "英语后20%"
         };
-        Object[][] value = new Object[finalDataList.size() + 1][cols.length];
+        Object[][] value = new Object[finalWriteList.size() + 1][cols.length];
         for (int m = 0; m < cols.length; m++) {
             value[0][m] = cols[m];
         }
-        for (int i = 0; i < finalDataList.size(); i++) {
-            resBean users = (resBean) finalDataList.get(i);
+        for (int i = 0; i < finalWriteList.size(); i++) {
+            resBean users = (resBean) finalWriteList.get(i);
 
             value[i + 1][0] = users.getSchool();
             value[i + 1][1] = users.getClassName();
@@ -132,7 +143,7 @@ public class Main {
             value[i + 1][13] = users.getEng_last();
 
         }
-        ExcelUtil.writeArrayToExcel(wb, sheet, finalDataList.size() + 1, cols.length, value);
+        ExcelUtil.writeArrayToExcel(wb, sheet, finalWriteList.size() + 1, cols.length, value);
 
         ExcelUtil.writeWorkbook(wb, path);
 
@@ -142,7 +153,6 @@ public class Main {
         Set<String> keySet = map.keySet();
         for (String key : keySet) {
             ArrayList<String> list = map.get(key);
-
             for (String name : list) {          //依次列出每个学校的每个班级
                 System.out.println(key + " " + name);
                 String res = getBy(key, name);
@@ -187,12 +197,16 @@ public class Main {
                         yuwen_fir / total_num, math_fir / total_num, eng_fir / total_num,
                         yuwen_las / total_num, math_las / total_num, eng_las / total_num
                         , 0);
-                finalDataList.add(temp);
+                finalWriteList.add(temp);
                 System.out.println(res);
 //                insertResult(temp);
             }
         }
-        System.out.println(count);
+        allDataList.clear();//清除历史数据
+        yuwenList.clear();
+        mathList.clear();
+        engList.clear();
+        map.clear(); //清除学校--班级 键值对
     }
 
     public static List<bean> loadData(String path) {
@@ -204,21 +218,21 @@ public class Main {
         } catch (Exception e) {
             e.printStackTrace();
         }
-        for (bean bean : list) {
-            System.out.println(bean.toString());
-//            GUI.ta.setText(GUI.ta.getText().toString() + "\n" + bean.toString());
-//            GUI.ta.setCaretPosition(GUI.ta.getText().length());
-        }
-        System.out.println("======================================");
+//        for (bean bean : list) {
+//            System.out.println(bean.toString());
+////            GUI.ta.setText(GUI.ta.getText().toString() + "\n" + bean.toString());
+////            GUI.ta.setCaretPosition(GUI.ta.getText().length());
+//        }
+//        System.out.println("======================================");
         return list;
     }
 
-    private static Integer getAll() {
+    private static Integer getAll(int grade) {
         if (conn == null) {
             initMySql();
         }
 
-        String sql = "select school,classname from score";
+        String sql = "select school,classname from scores where grade = '" + grade + "'";
         PreparedStatement pstmt;
         try {
             pstmt = (PreparedStatement) conn.prepareStatement(sql);
@@ -249,7 +263,7 @@ public class Main {
         } catch (Exception e) {
             e.printStackTrace();
         }
-        sql = "select count(*) from score";
+        sql = "select count(*) from scores where grade = '" + grade + "'";
         try {
             pstmt = (PreparedStatement) conn.prepareStatement(sql);
             ResultSet rs = pstmt.executeQuery();
@@ -259,19 +273,19 @@ public class Main {
         } catch (Exception e) {
             e.printStackTrace();
         }
-        sql = "select * from score";
+        sql = "select * from scores where grade = '" + grade + "'";
         try {
             pstmt = (PreparedStatement) conn.prepareStatement(sql);
             ResultSet rs = pstmt.executeQuery();
             while (rs.next()) {
                 bean bean = new bean(rs.getString(2), rs.getString(3), rs.getString(4)
-                        , rs.getString(5), rs.getString(6), rs.getString(6));
+                        , rs.getString(5), rs.getString(6), rs.getString(7));
                 allDataList.add(bean);
             }
         } catch (Exception e) {
             e.printStackTrace();
         }
-        sql = "select yuwen,math,eng from score";
+        sql = "select yuwen,math,eng from scores where grade = '" + grade + "'";
         try {
             pstmt = (PreparedStatement) conn.prepareStatement(sql);
             ResultSet rs = pstmt.executeQuery();
@@ -296,7 +310,7 @@ public class Main {
         try {
             //////////////求平均分////////////////////////////////////
             PreparedStatement stmt = (PreparedStatement) conn.
-                    prepareStatement("select avg(yuwen),avg(math),avg(eng) from score where school = '" +
+                    prepareStatement("select avg(yuwen),avg(math),avg(eng) from scores where school = '" +
                             school + "' and classname='" + className + "'");
             ResultSet rs = stmt.executeQuery();
             int col = rs.getMetaData().getColumnCount();
@@ -310,8 +324,7 @@ public class Main {
 //                    }
                     sb.append(rs.getString(i) + "#");
                 }
-                count++;
-                System.out.println("");
+//                count++;
             }
             System.out.println("==============***********==============");
             //////////////求及格率////////////////////////////////////
@@ -319,7 +332,7 @@ public class Main {
                     //count(case when num>=60 then 1 else null end),
                             prepareStatement("select count(case when yuwen>=60 then 1 else null end)," +
                             "count(case when math>=60 then 1 else null end)," +
-                            "count(case when eng>=60 then 1 else null end) ,count(*) from score where school = '" +
+                            "count(case when eng>=60 then 1 else null end) ,count(*) from scores where school = '" +
                             school + "' and classname='" + className + "'");
             rs = stmt.executeQuery();
             col = rs.getMetaData().getColumnCount();
@@ -336,7 +349,7 @@ public class Main {
                     }
                     sb.append(rs.getString(i) + "#");
                 }
-                count++;
+//                count++;
                 System.out.println("");
             }
         } catch (Exception e) {
@@ -392,15 +405,16 @@ public class Main {
         int i = 0;
         for (bean temp : bean) {
             try {
-                String sql = "insert into score (school,classname,num,yuwen,math,eng) values(?,?,?,?,?,?)";
+                String sql = "insert into scores (school,classname,num,yuwen,math,eng,grade) values(?,?,?,?,?,?,?)";
                 pstmt = (PreparedStatement) conn.prepareStatement(sql);
 //                temp.getSchool()
                 pstmt.setString(1, temp.getSchool());
-                pstmt.setString(2, temp.getClassName());
-                pstmt.setDouble(3, temp.getNum());
-                pstmt.setDouble(4, temp.getYuwen());
-                pstmt.setDouble(5, temp.getMath());
-                pstmt.setDouble(6, temp.getEng());
+                pstmt.setString(2, temp.getClassName().trim());
+                pstmt.setString(3, temp.getNum()+"");
+                pstmt.setString(4, temp.getYuwen()+"");
+                pstmt.setString(5, temp.getMath()+"");
+                pstmt.setString(6, temp.getEng()+"");
+                pstmt.setString(7, temp.getClassName().trim().charAt(0)+"");//添加年级
                 i = pstmt.executeUpdate();
             } catch (Exception e) {
                 e.printStackTrace();
